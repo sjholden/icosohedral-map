@@ -233,10 +233,6 @@ class EquirectangularSource:
         self.pixels = image.load()
         self.width = width
         self.height = height
-        self.minLat = 0
-        self.maxLat = 0
-        self.minLon = 10000
-        self.maxLon = -10000
         
     def latLongPixelValue(self, lat, lon):
         y = int(self.height / 2 - self.heightStep * lat)
