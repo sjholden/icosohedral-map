@@ -46,7 +46,7 @@ from PIL import Image, ImageDraw
 
 SQRT3 = math.sqrt(3)
 
-ctheta = math.cos(math.atan(0.5))
+ctheta = math.cos(math.atan(2.0))
 stheta = math.sin(math.atan(0.5))
 IcosVertices = [(0, 0, 1),
                 (ctheta * math.cos(math.radians(72*0)),    ctheta * math.sin(math.radians(72*0)),    stheta),
@@ -109,7 +109,7 @@ class IcosoProjection:
         for triangle in triangles:
             tri= []
             for x, y in triangle:
-                tri.append((int(round(x * halfSide)), int(round(y * height))))
+                tri.append((x * halfSide, y * height))
             self.triangles.append(tri)
             
     def overlayTriangles(self, image):
@@ -186,7 +186,7 @@ class IcosoProjection:
     
     def triangleOffset(self, triangle, x, y):
         """get offset from left corner."""
-        if triangle / 5 in (0, 2):
+        if triangle // 5 in (0, 2):
             xoffset = (x - self.triangles[triangle][2][0]) / float(self.triangles[triangle][1][0] - self.triangles[triangle][2][0])
             yoffset = (y - self.triangles[triangle][2][1]) / float(self.triangles[triangle][0][1] - self.triangles[triangle][2][1])
         else:
@@ -196,7 +196,7 @@ class IcosoProjection:
     
     def mapToIcosohedronTriangle(self, triangle, offset):
         """Given the triangle and x,y offset on the 2D nest return the (x, y, z) for the corresponding point on the icosohedron face."""
-        if triangle / 5 in (0, 2):
+        if triangle // 5 in (0, 2):
             offsetVertex = IcosVertices[IcosFaces[triangle][2]]
             offsetYVectorEnd = IcosVertices[IcosFaces[triangle][0]]
 
@@ -262,7 +262,7 @@ if __name__ == '__main__':
     parser.add_argument("-g", "--grid",  help="draw triangle borders", action="store_true")
 
     args = parser.parse_args()
-    source = EquirectangularSource(Image.open(args.input))         
+    source = EquirectangularSource(Image.open(args.input).convert('RGBA'))         
     test = IcosoProjection(width=args.width)
     image = test.createMap(source.latLongPixelValue)
     if args.grid:
