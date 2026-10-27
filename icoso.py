@@ -158,6 +158,60 @@ class IcosoProjection:
             for x, y in triangle:
                 tri.append((x * halfSide, y * height))
             self.triangles.append(tri)
+        self.calculateBarycentrics()
+
+    def calculateBarycentrics(self):
+        """Calculate the various dot products for barycentric coordinates for the triangles.
+
+        Instead of x and y axis we can consider a point in terms of barycentric coordinates of a triangle.
+        The point P can be expressed in terms in terms to the vectors C-A and B-A with coordinates (u,v):
+        P = A + u * (C-A) + v * (B-A)A
+        We are basically starting at A and walking u units down the AC edge (where the unit is the length of AC),
+        then v units in the direction of the (B-A) vector (where the unit is the length of AB).
+
+        If u<0 or u>1 we must be outside the triangle. if v<0 or v>1 we must also be outside the triangle.
+        If (u+v) > 1 then we crossed the BC edge and are also outside the triangle.
+        Otherwise P is inside the triangle.
+
+        Taking the equation for P we can do some math and calculate u and v:
+
+            P = A + u * (C - A) + v * (B - A)       // Original equation
+            (P - A) = u * (C - A) + v * (B - A)     // Subtract A from both sides
+            v2 = u * v0 + v * v1                    // Substitute v0, v1, v2 for less writing
+
+            // We have two unknowns (u and v) so we need two equations to solve
+            // for them.  Dot both sides by v0 to get one and dot both sides by
+            // v1 to get a second.
+            (v2) . v0 = (u * v0 + v * v1) . v0
+            (v2) . v1 = (u * v0 + v * v1) . v1
+
+            // Distribute v0 and v1
+            v2 . v0 = u * (v0 . v0) + v * (v1 . v0)
+            v2 . v1 = u * (v0 . v1) + v * (v1 . v1)
+
+            // Now we have two equations and two unknowns and can solve one
+            // equation for one variable and substitute into the other.  Or
+            // if you're lazy like me, fire up Mathematica and save yourself
+            // some handwriting.
+            Solve[v2.v0 == {u(v0.v0) + v(v1.v0), v2.v1 == u(v0.v1) + v(v1.v1)}, {u, v}]
+            u = ((v1.v1)(v2.v0)-(v1.v0)(v2.v1)) / ((v0.v0)(v1.v1) - (v0.v1)(v1.v0))
+            v = ((v0.v0)(v2.v1)-(v0.v1)(v2.v0)) / ((v0.v0)(v1.v1) - (v0.v1)(v1.v0))
+
+        Above is from https://blackpawn.com/texts/pointinpoly/
+
+        Here we calculate all the terms that don't involve P since we only need to do them once
+        per triangle, not one per point.
+        """
+
+        self.barycentrics = []
+        for a,b,c in self.triangles:
+            v0 = (c[0]-a[0], c[1]-a[1])
+            v1 = (b[0]-a[0], b[1]-a[1])
+            dotv0v0 = v0[0]*v0[0] + v0[1]*v0[1]
+            dotv0v1 = v0[0]*v1[0] + v0[1]*v1[1]
+            dotv1v1 = v1[0]*v1[0] + v1[1]*v1[1]
+            invDenominator = 1 / (dotv0v0 * dotv1v1 - dotv0v1 * dotv0v1)
+            self.barycentrics.append((v0, v1, dotv0v0, dotv0v1, dotv1v1, invDenominator))
 
     def overlayTriangles(self, image):
         """Draw the triangles.
@@ -193,21 +247,24 @@ class IcosoProjection:
         Returns:
             PIL Image of the map.
         """
-        # helper function
-        def sameSide(p1, p2, a, b):
-            """Are p1 and p2 on the same side of the line a, b?"""
-            return 0 <= ((p1[1] - a[1]) * (b[0] - a[0]) - (p1[0] - a[0]) * (b[1] - a[1])) * ((p2[1] - a[1]) * (b[0] - a[0]) - (p2[0] - a[0]) * (b[1] - a[1]))
         image = Image.new("RGBA", (self.width, self.height))
         pix = image.load()
         triangles = self.triangles
+        barycentrics = self.barycentrics
         currentTriangle = 0 #will be the first triangle we hit
         for y in range(self.height):
             for x in range(self.width):
                 # Find the triangle we are in
                 triangle = None
                 for i in TrianglesNext[currentTriangle]:
-                    a, b, c = triangles[i]
-                    if (x,y) == a or (x,y) == b or (x,y) == c or sameSide((x, y), a, b, c) and sameSide((x, y), b, a, c) and sameSide((x, y), c, a, b):
+                    a = triangles[i][0]
+                    v0, v1, dotv0v0, dotv0v1, dotv1v1, invDenominator = barycentrics[i]
+                    v2 = (x-a[0], y-a[1])
+                    dotv0v2 = v0[0]*v2[0] + v0[1]*v2[1]
+                    dotv1v2 = v1[0]*v2[0] + v1[1]*v2[1]
+                    u = (dotv1v1 * dotv0v2 - dotv0v1 * dotv1v2) * invDenominator
+                    v = (dotv0v0 * dotv1v2 - dotv0v1 * dotv0v2) * invDenominator
+                    if (u >= 0) and (v >= 0) and ((u + v) < 1):
                         currentTriangle = i
                         triangle = i
                         break
