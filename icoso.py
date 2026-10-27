@@ -209,16 +209,33 @@ class IcosoProjection:
                 if triangle is None:
                     continue
                 # Find the offset within that triangle from the left corner - up and down triangles are different
+                # Find the corresponding offset in the icosohedron face, in 3 dimensions
                 if triangle // 5 in (0, 2):
                     xoffset = (x - triangles[triangle][2][0]) / (triangles[triangle][1][0] - triangles[triangle][2][0])
                     yoffset = (y - triangles[triangle][2][1]) / (triangles[triangle][0][1] - triangles[triangle][2][1])
+                    offsetVertex = IcosVertices[IcosFaces[triangle][2]]
+                    offsetYVectorEnd = IcosVertices[IcosFaces[triangle][0]]
                 else:
                     xoffset = (x - triangles[triangle][0][0]) / (triangles[triangle][1][0] - triangles[triangle][0][0])
                     yoffset = (y - triangles[triangle][0][1]) / (triangles[triangle][2][1] - triangles[triangle][0][1])
-                offset = (xoffset, yoffset)
-                icosCoord = mapToIcosohedronTriangle(triangle, offset)
-                ll = coordToLatLong(icosCoord)
-                pix[x, y] = dataSource(ll[0], ll[1])
+                    offsetVertex = IcosVertices[IcosFaces[triangle][0]]
+                    offsetYVectorEnd = IcosVertices[IcosFaces[triangle][2]]
+                offsetXVector = (IcosVertices[IcosFaces[triangle][1]][0] - offsetVertex[0],
+                                 IcosVertices[IcosFaces[triangle][1]][1] - offsetVertex[1],
+                                 IcosVertices[IcosFaces[triangle][1]][2] - offsetVertex[2])
+                offsetYVector = (offsetYVectorEnd[0] - offsetVertex[0] - offsetXVector[0]/2.0,
+                                 offsetYVectorEnd[1] - offsetVertex[1] - offsetXVector[1]/2.0,
+                                 offsetYVectorEnd[2] - offsetVertex[2] - offsetXVector[2]/2.0)
+                # Convert those offsets to five the coordinates on the icosohedron
+                iCoord = (offsetVertex[0] + xoffset * offsetXVector[0] + yoffset * offsetYVector[0],
+                          offsetVertex[1] + xoffset * offsetXVector[1] + yoffset * offsetYVector[1],
+                          offsetVertex[2] + xoffset * offsetXVector[2] + yoffset * offsetYVector[2])
+                # Convert that point to a latitide, longitude 
+                length = math.sqrt(iCoord[0]*iCoord[0] + iCoord[1]*iCoord[1] + iCoord[2]*iCoord[2])
+                point = (iCoord[0]/length, iCoord[1]/length, iCoord[2]/length)
+                lat = math.asin(point[2])
+                lon = math.atan2(point[1], point[0])
+                pix[x, y] = dataSource(lat, lon)
         return image
 
     def calcLatLong(self, x, y):
