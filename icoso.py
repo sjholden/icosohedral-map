@@ -196,12 +196,21 @@ class IcosoProjection:
         image = Image.new("RGBA", (self.width, self.height))
         pix = image.load()
         self.currentTriangle = 0
-        cll = self.calcLatLong #save a lookup in the loop
+        # local variables instead of self lookups in the loop just for speed
+        getContainingTriangle = self.getContainingTriangle
+        triangleOffset = self.triangleOffset
+        mapToIcosohedronTriangle = self.mapToIcosohedronTriangle
+        coordToLatLong = self.coordToLatLong
         for y in range(self.height):
             for x in range(self.width):
-                ll = cll(x, y)
-                if ll:
-                    pix[x, y] = dataSource(ll[0], ll[1])
+                # Find the Lat/Long of the point that projects into this pixel.
+                triangle = getContainingTriangle(x, y)
+                if triangle is None:
+                    continue
+                offset = triangleOffset(triangle, x, y)
+                icosCoord = mapToIcosohedronTriangle(triangle, offset)
+                ll = coordToLatLong(icosCoord)
+                pix[x, y] = dataSource(ll[0], ll[1])
         return image
 
     def calcLatLong(self, x, y):
