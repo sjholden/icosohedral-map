@@ -201,13 +201,21 @@ class IcosoProjection:
         triangleOffset = self.triangleOffset
         mapToIcosohedronTriangle = self.mapToIcosohedronTriangle
         coordToLatLong = self.coordToLatLong
+        triangles = self.triangles
         for y in range(self.height):
             for x in range(self.width):
-                # Find the Lat/Long of the point that projects into this pixel.
+                # Find the triangle we are in
                 triangle = getContainingTriangle(x, y)
                 if triangle is None:
                     continue
-                offset = triangleOffset(triangle, x, y)
+                # Find the offset within that triangle from the left corner - up and down triangles are different
+                if triangle // 5 in (0, 2):
+                    xoffset = (x - triangles[triangle][2][0]) / (triangles[triangle][1][0] - triangles[triangle][2][0])
+                    yoffset = (y - triangles[triangle][2][1]) / (triangles[triangle][0][1] - triangles[triangle][2][1])
+                else:
+                    xoffset = (x - triangles[triangle][0][0]) / (triangles[triangle][1][0] - triangles[triangle][0][0])
+                    yoffset = (y - triangles[triangle][0][1]) / (triangles[triangle][2][1] - triangles[triangle][0][1])
+                offset = (xoffset, yoffset)
                 icosCoord = mapToIcosohedronTriangle(triangle, offset)
                 ll = coordToLatLong(icosCoord)
                 pix[x, y] = dataSource(ll[0], ll[1])
