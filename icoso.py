@@ -30,7 +30,7 @@ The terrible algorithm is:
 
 Create an image containing the triangle mesh. It will 5.5 triangle side lengths wide and 3 triangle heights high.
 Iterate over every point in the image.
-If the point is inside one of the triangles (we use the simple check if the point is on the same side of the defined by each vertex pair as the remaining vertex):
+If the point is inside one of the triangles (we use the simple check if the point is on the same side of the line defined by each vertex pair as the remaining vertex):
     Determine the offset of the point within the triangle, the x offset is in units of the side length, the y offset is in units of the triangle height.
     Find the corresponding triangle in an icosohedron.
     Convert the offsets - the x offset becomes an offset vector in the direction of the side that corresponds to the x axis in the net, the y is in the direction of the height vector to the remaining vertex.
@@ -68,6 +68,33 @@ IcosFaces = [(0,2,1), (0,3,2), (0,4,3), (0,5,4), (0,1,5),
              (6,7,11), (7,8,11), (8,9,11), (9,10,11), (10,6,11),
              ]
 
+# We walk the output image to populate, moving left to right and top to bottom, given out triangle mesh
+# a step one pixel right (wrapping to the left and down one) can only reach a small number of
+# triangles from the last triangle we visited, this list encodes that - so we check a few triangles
+# instead of 20 at each step.
+TrianglesNext = [(0,1),
+                 (1,2),
+                 (2,3),
+                 (3,4),
+                 (4,0,5),
+                 (5,10,6),
+                 (6,11,7),
+                 (7,12,8),
+                 (8,13,9),
+                 (9,14,5,15),
+                 (10,6,11),
+                 (11,7,12),
+                 (12,8,13),
+                 (13,9,14),
+                 (14,5,15),
+                 (15,16),
+                 (16,17),
+                 (17,18),
+                 (18,19),
+                 (19,15),
+                ]
+
+
 
 class IcosoProjection:
     """Do our terrible brute force icosohedral map."""
@@ -78,6 +105,7 @@ class IcosoProjection:
         self.width = width
         self.height = int(math.ceil((SQRT3 / 2.0 * (width / 5.5)) * 3))
         self.initialize()
+        self.currentTriangle = 0
     
     def initialize(self):
         """Initialize the width dependent data."""
@@ -85,7 +113,7 @@ class IcosoProjection:
         height = SQRT3 / 2.0 * (halfSide * 2.0)
         triangles = [
                      [(1, 0), (2, 1), (0, 1)],
-                     [(3, 0), (4, 1), (2, 1)],
+                     [(3, 0), (4, 1), (2, 1)], 
                      [(5, 0), (6, 1), (4, 1)],
                      [(7, 0), (8, 1), (6, 1)],
                      [(9, 0), (10, 1), (8, 1)],
@@ -119,23 +147,23 @@ class IcosoProjection:
         """
         draw = ImageDraw.Draw(image)
         # the \ lines
-        draw.line((self.triangles[0][2], self.triangles[15][2]), fill='black', width=1)
-        draw.line((self.triangles[0][0], self.triangles[16][2]), fill='black', width=1)
-        draw.line((self.triangles[1][0], self.triangles[17][2]), fill='black', width=1)
-        draw.line((self.triangles[2][0], self.triangles[18][2]), fill='black', width=1)
-        draw.line((self.triangles[3][0], self.triangles[19][2]), fill='black', width=1)
-        draw.line((self.triangles[4][0], self.triangles[19][1]), fill='black', width=1)
+        draw.line((self.triangles[0][2], self.triangles[15][2]), fill='black', width=2)
+        draw.line((self.triangles[0][0], self.triangles[16][2]), fill='black', width=2)
+        draw.line((self.triangles[1][0], self.triangles[17][2]), fill='black', width=2)
+        draw.line((self.triangles[2][0], self.triangles[18][2]), fill='black', width=2)
+        draw.line((self.triangles[3][0], self.triangles[19][2]), fill='black', width=2)
+        draw.line((self.triangles[4][0], self.triangles[19][1]), fill='black', width=2)
         # the / lines
-        draw.line((self.triangles[0][0], self.triangles[0][2]), fill='black', width=1)
-        draw.line((self.triangles[1][0], self.triangles[15][0]), fill='black', width=1)
-        draw.line((self.triangles[2][0], self.triangles[15][2]), fill='black', width=1)
-        draw.line((self.triangles[3][0], self.triangles[16][2]), fill='black', width=1)
-        draw.line((self.triangles[4][0], self.triangles[17][2]), fill='black', width=1)
-        draw.line((self.triangles[4][1], self.triangles[18][2]), fill='black', width=1)
-        draw.line((self.triangles[19][1], self.triangles[19][2]), fill='black', width=1)
+        draw.line((self.triangles[0][0], self.triangles[0][2]), fill='black', width=2)
+        draw.line((self.triangles[1][0], self.triangles[15][0]), fill='black', width=2)
+        draw.line((self.triangles[2][0], self.triangles[15][2]), fill='black', width=2)
+        draw.line((self.triangles[3][0], self.triangles[16][2]), fill='black', width=2)
+        draw.line((self.triangles[4][0], self.triangles[17][2]), fill='black', width=2)
+        draw.line((self.triangles[4][1], self.triangles[18][2]), fill='black', width=2)
+        draw.line((self.triangles[19][1], self.triangles[19][2]), fill='black', width=2)
         # the - lines
-        draw.line((self.triangles[0][2], self.triangles[4][1]), fill='black', width=1)
-        draw.line((self.triangles[15][0], self.triangles[19][1]), fill='black', width=1)
+        draw.line((self.triangles[0][2], self.triangles[4][1]), fill='black', width=2)
+        draw.line((self.triangles[15][0], self.triangles[19][1]), fill='black', width=2)
         del draw
 
     def createMap(self, dataSource):
@@ -148,6 +176,7 @@ class IcosoProjection:
         """
         image = Image.new("RGBA", (self.width, self.height))
         pix = image.load()
+        self.currentTriangle = 0
         for y in range(self.height):
             for x in range(self.width):
                 ll = self.calcLatLong(x, y)
@@ -178,20 +207,23 @@ class IcosoProjection:
             """Are p1 and p2 on the same side of the line a, b?"""
             return 0 <= ((p1[1] - a[1]) * (b[0] - a[0]) - (p1[0] - a[0]) * (b[1] - a[1])) * ((p2[1] - a[1]) * (b[0] - a[0]) - (p2[0] - a[0]) * (b[1] - a[1]))
         
-        for i in range(len(self.triangles)):
+        #for i in range(len(self.triangles)):
+        #for i in list(range(len(self.triangles)))[self.currentTriangle:] + list(range(len(self.triangles)))[0:self.currentTriangle]:
+        for i in TrianglesNext[self.currentTriangle]:
             a, b, c = self.triangles[i]
             if (x,y) == a or (x,y) == b or (x,y) == c or sameSide((x, y), a, b, c) and sameSide((x, y), b, a, c) and sameSide((x, y), c, a, b):
+                self.currentTriangle = i
                 return i
         return None
     
     def triangleOffset(self, triangle, x, y):
         """get offset from left corner."""
         if triangle // 5 in (0, 2):
-            xoffset = (x - self.triangles[triangle][2][0]) / float(self.triangles[triangle][1][0] - self.triangles[triangle][2][0])
-            yoffset = (y - self.triangles[triangle][2][1]) / float(self.triangles[triangle][0][1] - self.triangles[triangle][2][1])
+            xoffset = (x - self.triangles[triangle][2][0]) / (self.triangles[triangle][1][0] - self.triangles[triangle][2][0])
+            yoffset = (y - self.triangles[triangle][2][1]) / (self.triangles[triangle][0][1] - self.triangles[triangle][2][1])
         else:
-            xoffset = (x - self.triangles[triangle][0][0]) / float(self.triangles[triangle][1][0] - self.triangles[triangle][0][0])
-            yoffset = (y - self.triangles[triangle][0][1]) / float(self.triangles[triangle][2][1] - self.triangles[triangle][0][1])
+            xoffset = (x - self.triangles[triangle][0][0]) / (self.triangles[triangle][1][0] - self.triangles[triangle][0][0])
+            yoffset = (y - self.triangles[triangle][0][1]) / (self.triangles[triangle][2][1] - self.triangles[triangle][0][1])
         return xoffset, yoffset
     
     def mapToIcosohedronTriangle(self, triangle, offset):
