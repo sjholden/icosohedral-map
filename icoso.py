@@ -272,11 +272,7 @@ class EquirectangularSource:
             y = 0
         if y >= self.height:
             y = self.height - 1
-        pi2 = math.pi + math.pi
-        while lon < 0:
-            lon = lon + pi2
-        while lon > pi2:
-            lon = lon- pi2
+        lon = lon % (2 * math.pi)
         x = int(self.widthStep * lon)
         if x < 0:
             x = 0
