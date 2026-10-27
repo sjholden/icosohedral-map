@@ -198,9 +198,6 @@ class IcosoProjection:
         self.currentTriangle = 0
         # local variables instead of self lookups in the loop just for speed
         getContainingTriangle = self.getContainingTriangle
-        triangleOffset = self.triangleOffset
-        mapToIcosohedronTriangle = self.mapToIcosohedronTriangle
-        coordToLatLong = self.coordToLatLong
         triangles = self.triangles
         for y in range(self.height):
             for x in range(self.width):
@@ -238,23 +235,6 @@ class IcosoProjection:
                 pix[x, y] = dataSource(lat, lon)
         return image
 
-    def calcLatLong(self, x, y):
-        """Get Lat, Long for a point on the map.
-
-        Arguments:
-            x(int): the x-coordinate of the pixel
-            y(int): the y-coordinate of the pixel
-        Returns:
-            (long, lat) if (x, y) is inside the map portion of the image, None if not.
-        """
-        triangle = self.getContainingTriangle(x, y)
-        if triangle is None:
-            return None
-        offset = self.triangleOffset(triangle, x, y)
-        icosCoord = self.mapToIcosohedronTriangle(triangle, offset)
-        return self.coordToLatLong(icosCoord)
-
-
     def getContainingTriangle(self, x, y):
         """Get the triangle the point is in."""
         def sameSide(p1, p2, a, b):
@@ -266,44 +246,6 @@ class IcosoProjection:
                 self.currentTriangle = i
                 return i
         return None
-
-    def triangleOffset(self, triangle, x, y):
-        """get offset from left corner."""
-        if triangle // 5 in (0, 2):
-            xoffset = (x - self.triangles[triangle][2][0]) / (self.triangles[triangle][1][0] - self.triangles[triangle][2][0])
-            yoffset = (y - self.triangles[triangle][2][1]) / (self.triangles[triangle][0][1] - self.triangles[triangle][2][1])
-        else:
-            xoffset = (x - self.triangles[triangle][0][0]) / (self.triangles[triangle][1][0] - self.triangles[triangle][0][0])
-            yoffset = (y - self.triangles[triangle][0][1]) / (self.triangles[triangle][2][1] - self.triangles[triangle][0][1])
-        return xoffset, yoffset
-
-    def mapToIcosohedronTriangle(self, triangle, offset):
-        """Given the triangle and x,y offset on the 2D nest return the (x, y, z) for the corresponding point on the icosohedron face."""
-        if triangle // 5 in (0, 2):
-            offsetVertex = IcosVertices[IcosFaces[triangle][2]]
-            offsetYVectorEnd = IcosVertices[IcosFaces[triangle][0]]
-
-        else:
-            offsetVertex = IcosVertices[IcosFaces[triangle][0]]
-            offsetYVectorEnd = IcosVertices[IcosFaces[triangle][2]]
-
-        offsetXVector = (IcosVertices[IcosFaces[triangle][1]][0] - offsetVertex[0],
-                         IcosVertices[IcosFaces[triangle][1]][1] - offsetVertex[1],
-                         IcosVertices[IcosFaces[triangle][1]][2] - offsetVertex[2])
-        offsetYVector = (offsetYVectorEnd[0] - offsetVertex[0] - offsetXVector[0]/2.0,
-                         offsetYVectorEnd[1] - offsetVertex[1] - offsetXVector[1]/2.0,
-                         offsetYVectorEnd[2] - offsetVertex[2] - offsetXVector[2]/2.0)
-
-        return (offsetVertex[0] + offset[0] * offsetXVector[0] + offset[1] * offsetYVector[0],
-                offsetVertex[1] + offset[0] * offsetXVector[1] + offset[1] * offsetYVector[1],
-                offsetVertex[2] + offset[0] * offsetXVector[2] + offset[1] * offsetYVector[2])
-
-
-    def coordToLatLong(self, point):
-        """Given a point (x, y, z) on the surface of a unit sphere centered at (0, 0, 0) return the latitude, longitude."""
-        length = math.sqrt(point[0]*point[0] + point[1]*point[1] + point[2]*point[2])
-        point = (point[0]/length, point[1]/length, point[2]/length)
-        return (math.asin(point[2]), math.atan2(point[1],  point[0]))
 
 class EquirectangularSource:
     """Using an equirectangular projection image provide a (lat, lon) interface to the points."""
