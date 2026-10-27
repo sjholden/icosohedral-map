@@ -193,16 +193,24 @@ class IcosoProjection:
         Returns:
             PIL Image of the map.
         """
+        # helper function
+        def sameSide(p1, p2, a, b):
+            """Are p1 and p2 on the same side of the line a, b?"""
+            return 0 <= ((p1[1] - a[1]) * (b[0] - a[0]) - (p1[0] - a[0]) * (b[1] - a[1])) * ((p2[1] - a[1]) * (b[0] - a[0]) - (p2[0] - a[0]) * (b[1] - a[1]))
         image = Image.new("RGBA", (self.width, self.height))
         pix = image.load()
-        self.currentTriangle = 0
-        # local variables instead of self lookups in the loop just for speed
-        getContainingTriangle = self.getContainingTriangle
         triangles = self.triangles
+        currentTriangle = 0 #will be the first triangle we hit
         for y in range(self.height):
             for x in range(self.width):
                 # Find the triangle we are in
-                triangle = getContainingTriangle(x, y)
+                triangle = None
+                for i in TrianglesNext[currentTriangle]:
+                    a, b, c = triangles[i]
+                    if (x,y) == a or (x,y) == b or (x,y) == c or sameSide((x, y), a, b, c) and sameSide((x, y), b, a, c) and sameSide((x, y), c, a, b):
+                        currentTriangle = i
+                        triangle = i
+                        break
                 if triangle is None:
                     continue
                 # Find the offset within that triangle from the left corner - up and down triangles are different
