@@ -243,18 +243,6 @@ class IcosoProjection:
                 pix[x, y] = dataSource(lat, lon)
         return image
 
-    def getContainingTriangle(self, x, y):
-        """Get the triangle the point is in."""
-        def sameSide(p1, p2, a, b):
-            """Are p1 and p2 on the same side of the line a, b?"""
-            return 0 <= ((p1[1] - a[1]) * (b[0] - a[0]) - (p1[0] - a[0]) * (b[1] - a[1])) * ((p2[1] - a[1]) * (b[0] - a[0]) - (p2[0] - a[0]) * (b[1] - a[1]))
-        for i in TrianglesNext[self.currentTriangle]:
-            a, b, c = self.triangles[i]
-            if (x,y) == a or (x,y) == b or (x,y) == c or sameSide((x, y), a, b, c) and sameSide((x, y), b, a, c) and sameSide((x, y), c, a, b):
-                self.currentTriangle = i
-                return i
-        return None
-
 class EquirectangularSource:
     """Using an equirectangular projection image provide a (lat, lon) interface to the points."""
     def __init__(self, image):
