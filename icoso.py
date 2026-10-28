@@ -146,7 +146,6 @@ class IcosoProjection:
         self.width = width
         self.height = int(math.ceil((SQRT3 / 2.0 * (width / 5.5)) * 3))
         self.initialize()
-        self.currentTriangle = 0
 
     def initialize(self):
         """Initialize the width dependent data."""
@@ -159,6 +158,7 @@ class IcosoProjection:
                 tri.append((x * halfSide, y * height))
             self.triangles.append(tri)
         self.calculateBarycentrics()
+        self.calculatePixelToTriangleMap()
 
     def calculateBarycentrics(self):
         """Calculate the various dot products for barycentric coordinates for the triangles.
@@ -239,6 +239,34 @@ class IcosoProjection:
         draw.line((self.triangles[15][0], self.triangles[19][1]), fill='black', width=2)
         del draw
 
+    def calculatePixelToTriangleMap(self):
+        """Map the pixels to the triangles they are in.
+
+        Only useful if we create more than one Map from the same object.
+        But simplifies the createMap code at the cost of space.
+        """
+        self.pixelToTriangle = bytearray(self.width*self.height)
+        triangles = self.triangles
+        barycentrics = self.barycentrics
+        width = self.width
+        currentTriangle = 0 #will be the first triangle we hit
+        for y in range(self.height):
+            for x in range(self.width):
+                self.pixelToTriangle[y*width+x] = 255
+                for triangle in TrianglesNext[currentTriangle]:
+                    a = triangles[triangle][0]
+                    v0, v1, dotv0v0, dotv0v1, dotv1v1, invDenominator = barycentrics[triangle]
+                    v2 = (x-a[0], y-a[1])
+                    dotv0v2 = v0[0]*v2[0] + v0[1]*v2[1]
+                    dotv1v2 = v1[0]*v2[0] + v1[1]*v2[1]
+                    u = (dotv1v1 * dotv0v2 - dotv0v1 * dotv1v2) * invDenominator
+                    v = (dotv0v0 * dotv1v2 - dotv0v1 * dotv0v2) * invDenominator
+                    if (u >= 0) and (v >= 0) and ((u + v) < 1):
+                        currentTriangle = triangle
+                        self.pixelToTriangle[y*width+x] = triangle
+                        break
+
+
     def createMap(self, dataSource):
         """Create the map.
 
@@ -250,49 +278,38 @@ class IcosoProjection:
         image = Image.new("RGBA", (self.width, self.height))
         pix = image.load()
         triangles = self.triangles
-        barycentrics = self.barycentrics
-        currentTriangle = 0 #will be the first triangle we hit
+        pixelToTriangle = self.pixelToTriangle
+        width = self.width
         for y in range(self.height):
             for x in range(self.width):
-                for triangle in TrianglesNext[currentTriangle]:
-                    a = triangles[triangle][0]
-                    v0, v1, dotv0v0, dotv0v1, dotv1v1, invDenominator = barycentrics[triangle]
-                    v2 = (x-a[0], y-a[1])
-                    dotv0v2 = v0[0]*v2[0] + v0[1]*v2[1]
-                    dotv1v2 = v1[0]*v2[0] + v1[1]*v2[1]
-                    u = (dotv1v1 * dotv0v2 - dotv0v1 * dotv1v2) * invDenominator
-                    v = (dotv0v0 * dotv1v2 - dotv0v1 * dotv0v2) * invDenominator
-                    if (u >= 0) and (v >= 0) and ((u + v) < 1):
-                        currentTriangle = triangle
-                        # Find the offset within that triangle from the left corner
-                        # Find the corresponding offset in the icosohedron face, in 3 dimensions
-                        if triangle // 5 in (0, 2):
-                            xoffset = (x - triangles[triangle][2][0]) / (triangles[triangle][1][0] - triangles[triangle][2][0])
-                            yoffset = (y - triangles[triangle][2][1]) / (triangles[triangle][0][1] - triangles[triangle][2][1])
-                            offsetVertex = IcosVertices[IcosFaces[triangle][2]]
-                            offsetYVectorEnd = IcosVertices[IcosFaces[triangle][0]]
-                        else:
-                            xoffset = (x - triangles[triangle][0][0]) / (triangles[triangle][1][0] - triangles[triangle][0][0])
-                            yoffset = (y - triangles[triangle][0][1]) / (triangles[triangle][2][1] - triangles[triangle][0][1])
-                            offsetVertex = IcosVertices[IcosFaces[triangle][0]]
-                            offsetYVectorEnd = IcosVertices[IcosFaces[triangle][2]]
-                        offsetXVector = (IcosVertices[IcosFaces[triangle][1]][0] - offsetVertex[0],
-                                         IcosVertices[IcosFaces[triangle][1]][1] - offsetVertex[1],
-                                         IcosVertices[IcosFaces[triangle][1]][2] - offsetVertex[2])
-                        offsetYVector = (offsetYVectorEnd[0] - offsetVertex[0] - offsetXVector[0]/2.0,
-                                         offsetYVectorEnd[1] - offsetVertex[1] - offsetXVector[1]/2.0,
-                                         offsetYVectorEnd[2] - offsetVertex[2] - offsetXVector[2]/2.0)
-                        # Convert those offsets to five the coordinates on the icosohedron
-                        iCoord = (offsetVertex[0] + xoffset * offsetXVector[0] + yoffset * offsetYVector[0],
-                                  offsetVertex[1] + xoffset * offsetXVector[1] + yoffset * offsetYVector[1],
-                                  offsetVertex[2] + xoffset * offsetXVector[2] + yoffset * offsetYVector[2])
-                        # Convert that point to a latitide, longitude 
-                        length = math.sqrt(iCoord[0]*iCoord[0] + iCoord[1]*iCoord[1] + iCoord[2]*iCoord[2])
-                        point = (iCoord[0]/length, iCoord[1]/length, iCoord[2]/length)
-                        lat = math.asin(point[2])
-                        lon = math.atan2(point[1], point[0])
-                        pix[x, y] = dataSource(lat, lon)
-                        break
+                triangle = pixelToTriangle[width*y+x]
+                if triangle != 255:
+                    if triangle // 5 in (0, 2):
+                        xoffset = (x - triangles[triangle][2][0]) / (triangles[triangle][1][0] - triangles[triangle][2][0])
+                        yoffset = (y - triangles[triangle][2][1]) / (triangles[triangle][0][1] - triangles[triangle][2][1])
+                        offsetVertex = IcosVertices[IcosFaces[triangle][2]]
+                        offsetYVectorEnd = IcosVertices[IcosFaces[triangle][0]]
+                    else:
+                        xoffset = (x - triangles[triangle][0][0]) / (triangles[triangle][1][0] - triangles[triangle][0][0])
+                        yoffset = (y - triangles[triangle][0][1]) / (triangles[triangle][2][1] - triangles[triangle][0][1])
+                        offsetVertex = IcosVertices[IcosFaces[triangle][0]]
+                        offsetYVectorEnd = IcosVertices[IcosFaces[triangle][2]]
+                    offsetXVector = (IcosVertices[IcosFaces[triangle][1]][0] - offsetVertex[0],
+                                     IcosVertices[IcosFaces[triangle][1]][1] - offsetVertex[1],
+                                     IcosVertices[IcosFaces[triangle][1]][2] - offsetVertex[2])
+                    offsetYVector = (offsetYVectorEnd[0] - offsetVertex[0] - offsetXVector[0]/2.0,
+                                     offsetYVectorEnd[1] - offsetVertex[1] - offsetXVector[1]/2.0,
+                                     offsetYVectorEnd[2] - offsetVertex[2] - offsetXVector[2]/2.0)
+                    # Convert those offsets to five the coordinates on the icosohedron
+                    iCoord = (offsetVertex[0] + xoffset * offsetXVector[0] + yoffset * offsetYVector[0],
+                              offsetVertex[1] + xoffset * offsetXVector[1] + yoffset * offsetYVector[1],
+                              offsetVertex[2] + xoffset * offsetXVector[2] + yoffset * offsetYVector[2])
+                    # Convert that point to a latitide, longitude
+                    length = math.sqrt(iCoord[0]*iCoord[0] + iCoord[1]*iCoord[1] + iCoord[2]*iCoord[2])
+                    point = (iCoord[0]/length, iCoord[1]/length, iCoord[2]/length)
+                    lat = math.asin(point[2])
+                    lon = math.atan2(point[1], point[0])
+                    pix[x, y] = dataSource(lat, lon)
         return image
 
 class EquirectangularSource:
